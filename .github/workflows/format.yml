@@ -14,7 +14,7 @@ jobs:
               uses: ./.github/actions/setup
 
             - name: Prettier
-              run: npm run format:check
+              run: npm run format
 
     list-ts:
         name: Check Eslint of TS and Other Files
@@ -27,7 +27,7 @@ jobs:
               uses: ./.github/actions/setup
 
             - name: Lint
-              run: npm run lint:check
+              run: npm run lint
 
     prettier-sol:
         name: Check Prettier of Solidity Files
@@ -40,7 +40,7 @@ jobs:
               uses: ./.github/actions/setup
 
             - name: Prettier
-              run: npm run sol:format:check
+              run: npm run sol:format
 
     solhint:
         name: Run Solhint
