@@ -10,6 +10,6 @@
 		"resolveJsonModule": true,
 		"skipDefaultLibCheck": true
 	},
-	"include": ["./test", "./typechain-types", "./deploy", "./types.d.ts"],
+	"include": ["./test", "./typechain-types", "./deploy", "./types.d.ts", "./scripts"],
 	"files": ["./hardhat.config.ts"]
 }
