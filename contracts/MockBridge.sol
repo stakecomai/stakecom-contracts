@@ -8,23 +8,21 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * GO TO: https://wizard.openzeppelin.com/#erc20
  */
 contract MockBridge {
-	IERC20 public wComToken;
+	IERC20 public wCOMAIToken;
 
-  struct BridgeUsers {
+	struct BridgeUsers {
 		uint256 amount;
 		string toAddress;
 	}
 
 	mapping(address => BridgeUsers) public bridgeUsers;
 
-	constructor(
-		address wComAddress
-	) {
-		wComToken = IERC20(wComAddress);
-  }
+	constructor(address wCOMAIAddress) {
+		wCOMAIToken = IERC20(wCOMAIAddress);
+	}
 
-  function bridgeBack(uint256 amount, string memory to) external {
-    wComToken.transferFrom(msg.sender, address(this), amount);
-    bridgeUsers[msg.sender] = BridgeUsers(amount, to);
-  }
+	function bridgeBack(uint256 amount, string memory to) external {
+		wCOMAIToken.transferFrom(msg.sender, address(this), amount);
+		bridgeUsers[msg.sender] = BridgeUsers(amount, to);
+	}
 }

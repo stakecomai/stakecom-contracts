@@ -23,7 +23,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 	using MessageHashUtils for bytes32;
 	using Address for address;
 
-	IERC20 public wComToken;
+	IERC20 public wCOMAIToken;
 	IComBridge public comBridge;
 
 	struct Stakers {
@@ -36,8 +36,8 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 	string public defaultValidator;
 	address public signer;
 	bool public allowCustomValidator = false;
-  uint256 public totalStaked;
-  bool public stakingPaused;
+	uint256 public totalStaked;
+	bool public stakingPaused;
 
 	event Staked(
 		address indexed user,
@@ -54,21 +54,24 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 	event ValidatorChanged(address indexed user, string newValidator);
 
 	constructor(
-		address _wComAddress,
+		address _wCOMAIAddress,
 		address _bridgeAddress,
 		string memory _defaultValidator
 	) Ownable(msg.sender) {
-		require(_wComAddress != address(0), "wComToken address cannot be 0");
+		require(
+			_wCOMAIAddress != address(0),
+			"wCOMAIToken address cannot be 0"
+		);
 		require(_bridgeAddress != address(0), "comBridge address cannot be 0");
 
-		wComToken = IERC20(_wComAddress);
+		wCOMAIToken = IERC20(_wCOMAIAddress);
 		comBridge = IComBridge(_bridgeAddress);
 		defaultValidator = _defaultValidator;
 		signer = msg.sender;
 
 		// Set the max allowance for the comBridge contract
 		uint256 maxUint = type(uint256).max;
-		wComToken.approve(address(comBridge), maxUint);
+		wCOMAIToken.approve(address(comBridge), maxUint);
 	}
 
 	function stake(
@@ -77,23 +80,23 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		string memory validator,
 		bytes memory signature
 	) external nonReentrant {
-    require(!stakingPaused, "Staking is paused.");
+		require(!stakingPaused, "Staking is paused.");
 		require(amount > 0, "Cannot stake 0 tokens.");
 		require(
-			wComToken.allowance(msg.sender, address(this)) >= amount,
+			wCOMAIToken.allowance(msg.sender, address(this)) >= amount,
 			"Stake amount exceeds allowance."
 		);
 		require(
-			wComToken.balanceOf(msg.sender) >= amount,
-			"Insufficient wCom balance."
+			wCOMAIToken.balanceOf(msg.sender) >= amount,
+			"Insufficient wCOMAI balance."
 		);
 
 		handleCommuneAddress(communeAddress, signature);
 		handleValidator(msg.sender, validator);
 
-		wComToken.transferFrom(msg.sender, address(this), amount);
+		wCOMAIToken.transferFrom(msg.sender, address(this), amount);
 		stakers[msg.sender].amount = stakers[msg.sender].amount + amount;
-    totalStaked += amount;
+		totalStaked += amount;
 
 		//Bridge tokens to CommuneAI
 		comBridge.bridgeBack(amount, stakers[msg.sender].communeAddress);
@@ -108,11 +111,11 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 
 	function setMaxBridgeAllowance() external onlyOwner {
 		uint256 maxUint = type(uint256).max;
-		wComToken.approve(address(comBridge), maxUint);
+		wCOMAIToken.approve(address(comBridge), maxUint);
 	}
 
 	function changeValidator(string memory newValidator) external {
-		require(allowCustomValidator, "Custom validators are not allowed");
+		require(allowCustomValidator, "Custom validator is not allowed");
 		require(
 			stakers[msg.sender].amount > 0,
 			"No stake to change validator for"
@@ -145,7 +148,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 			stakers[msg.sender].amount = amountBeforeUnstake - amount;
 		}
 
-    totalStaked -= amount;
+		totalStaked -= amount;
 
 		emit InitUnstake(msg.sender, amount, amountBeforeUnstake, unstakeAll);
 	}
@@ -164,13 +167,13 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		signer = _newSigner;
 	}
 
-  function toggleStakingPause() external onlyOwner {
-    stakingPaused = !stakingPaused;
-  }
+	function toggleStakingPause() external onlyOwner {
+		stakingPaused = !stakingPaused;
+	}
 
-  function updateComBridge(address _newComBridge) external onlyOwner {
-    comBridge = IComBridge(_newComBridge);
-  }
+	function updateComBridge(address _newCOMAIBridge) external onlyOwner {
+		comBridge = IComBridge(_newCOMAIBridge);
+	}
 
 	function adminUnstake(
 		address user,
@@ -213,7 +216,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 			);
 			stakers[msg.sender].communeAddress = communeAddress;
 		} else if (!isCommuneAddressExisting) {
-			revert("Commune address is required for first-time staking");
+			revert("Commune address is not set");
 		}
 	}
 
@@ -228,7 +231,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 			keccak256(bytes(validator)) != keccak256(bytes(currentValidator))
 		) {
 			revert(
-				"Cannot change existing validator during stake action. Change validator first."
+				"Can't change staked validator"
 			);
 		}
 
@@ -251,7 +254,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 			keccak256(bytes(validator)) != keccak256(bytes(defaultValidator)) &&
 			!allowCustomValidator
 		) {
-			revert("Custom validators are not allowed.");
+			revert("Custom validator is not allowed");
 		}
 
 		if (isValidatorProvided) {
