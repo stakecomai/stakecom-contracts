@@ -11,9 +11,9 @@
 		"sol:format:check": "prettier --check --plugin=prettier-plugin-solidity 'contracts/**/*.sol'",
 		"sol:format:write": "prettier --write --plugin=prettier-plugin-solidity 'contracts/**/*.sol'",
 		"solhint": "solhint -f table 'contracts/**/*.sol'",
-		"format:check": "prettier --check .",
-		"format:write": "prettier --write .",
-		"lint:check": "eslint .",
+		"format": "prettier --check .",
+		"format:fix": "prettier --write .",
+		"lint": "eslint .",
 		"lint:fix": "eslint --fix ."
 	},
 	"author": "Kristjan Kosic <kristjan@protokol.com>",
