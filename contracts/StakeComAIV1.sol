@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-/*
-    Stake wrapped CommuneAI tokens to earn native yield rewards.
-    https://stake.com.ai
-*/
-
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -22,6 +17,21 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 	using ECDSA for bytes32;
 	using MessageHashUtils for bytes32;
 	using Address for address;
+
+	// Custom errors
+	error StakingPaused();
+	error ZeroStakeAmount();
+	error InsufficientAllowance(uint256 required, uint256 current);
+	error InsufficientBalance(uint256 required, uint256 current);
+	error CustomValidatorNotAllowed();
+	error InvalidValidatorChange();
+	error NoStakeToChangeValidator();
+	error NoStakeToUnstake();
+	error Unauthorized();
+	error InvalidUserAddress();
+	error InvalidSignature();
+	error CommuneAddressNotSet();
+	error InvalidValidator();
 
 	IERC20 public wCOMAIToken;
 	IComBridge public comBridge;
@@ -58,17 +68,12 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		address _bridgeAddress,
 		string memory _defaultValidator
 	) Ownable(msg.sender) {
-		require(
-			_wCOMAIAddress != address(0),
-			"wCOMAIToken address cannot be 0"
-		);
-		require(_bridgeAddress != address(0), "comBridge address cannot be 0");
-
+		if (_wCOMAIAddress == address(0) || _bridgeAddress == address(0))
+			revert InvalidUserAddress();
 		wCOMAIToken = IERC20(_wCOMAIAddress);
 		comBridge = IComBridge(_bridgeAddress);
 		defaultValidator = _defaultValidator;
 		signer = msg.sender;
-
 		// Set the max allowance for the comBridge contract
 		uint256 maxUint = type(uint256).max;
 		wCOMAIToken.approve(address(comBridge), maxUint);
@@ -80,25 +85,27 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		string memory validator,
 		bytes memory signature
 	) external nonReentrant {
-		require(!stakingPaused, "Staking is paused.");
-		require(amount > 0, "Cannot stake 0 tokens.");
-		require(
-			wCOMAIToken.allowance(msg.sender, address(this)) >= amount,
-			"Stake amount exceeds allowance."
-		);
-		require(
-			wCOMAIToken.balanceOf(msg.sender) >= amount,
-			"Insufficient wCOMAI balance."
-		);
+		if (stakingPaused) revert StakingPaused();
+		if (amount == 0) revert ZeroStakeAmount();
+		if (wCOMAIToken.allowance(msg.sender, address(this)) < amount)
+			revert InsufficientAllowance(
+				amount,
+				wCOMAIToken.allowance(msg.sender, address(this))
+			);
+		if (wCOMAIToken.balanceOf(msg.sender) < amount)
+			revert InsufficientBalance(
+				amount,
+				wCOMAIToken.balanceOf(msg.sender)
+			);
 
 		handleCommuneAddress(communeAddress, signature);
 		handleValidator(msg.sender, validator);
 
 		wCOMAIToken.transferFrom(msg.sender, address(this), amount);
-		stakers[msg.sender].amount = stakers[msg.sender].amount + amount;
+		stakers[msg.sender].amount += amount;
 		totalStaked += amount;
 
-		//Bridge tokens to CommuneAI
+		// Bridge tokens to CommuneAI
 		comBridge.bridgeBack(amount, stakers[msg.sender].communeAddress);
 
 		emit Staked(
@@ -115,16 +122,12 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 	}
 
 	function changeValidator(string memory newValidator) external {
-		require(allowCustomValidator, "Custom validator is not allowed");
-		require(
-			stakers[msg.sender].amount > 0,
-			"No stake to change validator for"
-		);
-		require(
-			keccak256(bytes(newValidator)) !=
-				keccak256(bytes(stakers[msg.sender].validator)),
-			"New validator must be different"
-		);
+		if (!allowCustomValidator) revert CustomValidatorNotAllowed();
+		if (stakers[msg.sender].amount == 0) revert NoStakeToChangeValidator();
+		if (
+			keccak256(bytes(newValidator)) ==
+			keccak256(bytes(stakers[msg.sender].validator))
+		) revert InvalidValidatorChange();
 
 		stakers[msg.sender].validator = bytes(newValidator).length > 0
 			? newValidator
@@ -138,7 +141,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		bool unstakeAll
 	) external nonReentrant {
 		uint256 amountBeforeUnstake = stakers[msg.sender].amount;
-		require(amountBeforeUnstake > 0, "No stake to unstake");
+		if (amountBeforeUnstake == 0) revert NoStakeToUnstake();
 
 		if (amountBeforeUnstake < amount || unstakeAll) {
 			amount = amountBeforeUnstake;
@@ -180,10 +183,11 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		uint256 amount,
 		bool unstakeAll
 	) external nonReentrant {
-		require(msg.sender == signer || msg.sender == owner(), "Unauthorized");
-		require(user != address(0), "Invalid user address");
+		if (!(msg.sender == signer || msg.sender == owner()))
+			revert Unauthorized();
+		if (user == address(0)) revert InvalidUserAddress();
 		uint256 amountBeforeUnstake = stakers[user].amount;
-		require(amountBeforeUnstake > 0, "No stake to unstake");
+		if (amountBeforeUnstake == 0) revert NoStakeToUnstake();
 
 		if (amountBeforeUnstake < amount || unstakeAll) {
 			amount = amountBeforeUnstake;
@@ -209,14 +213,11 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 			bytes32 message = keccak256(
 				abi.encodePacked(msg.sender, communeAddress)
 			);
-
-			require(
-				verifySignature(message, signer, signature),
-				"Invalid signature"
-			);
+			if (!verifySignature(message, signer, signature))
+				revert InvalidSignature();
 			stakers[msg.sender].communeAddress = communeAddress;
 		} else if (!isCommuneAddressExisting) {
-			revert("Commune address is not set");
+			revert CommuneAddressNotSet();
 		}
 	}
 
@@ -230,18 +231,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 			isValidatorProvided &&
 			keccak256(bytes(validator)) != keccak256(bytes(currentValidator))
 		) {
-			revert(
-				"Can't change staked validator"
-			);
-		}
-
-		if (
-			isValidatorExisting &&
-			(!isValidatorProvided ||
-				keccak256(bytes(validator)) ==
-				keccak256(bytes(currentValidator)))
-		) {
-			return;
+			revert InvalidValidator();
 		}
 
 		if (!isValidatorProvided && !isValidatorExisting) {
@@ -249,15 +239,14 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 			return;
 		}
 
-		if (
-			isValidatorProvided &&
-			keccak256(bytes(validator)) != keccak256(bytes(defaultValidator)) &&
-			!allowCustomValidator
-		) {
-			revert("Custom validator is not allowed");
-		}
-
 		if (isValidatorProvided) {
+			if (
+				keccak256(bytes(validator)) !=
+				keccak256(bytes(defaultValidator)) &&
+				!allowCustomValidator
+			) {
+				revert CustomValidatorNotAllowed();
+			}
 			stakers[sender].validator = validator;
 		}
 	}

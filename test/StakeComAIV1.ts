@@ -153,9 +153,9 @@ describe.only("StakeComAIV1", () => {
 
 		const amount2 = parseEther("1500")
 
-		await expect(stakeContract.connect(user1Signer).stake(amount2, "", "vali::miner", "0x00")).to.be.revertedWith(
-			"Can't change staked validator"
-		)
+		await expect(
+			stakeContract.connect(user1Signer).stake(amount2, "", "vali::miner", "0x00")
+		).to.be.revertedWithCustomError(stakeContract, "InvalidValidator")
 	})
 
 	it("Should not allow staking if contract is paused", async () => {
@@ -177,7 +177,7 @@ describe.only("StakeComAIV1", () => {
 
 		await expect(
 			stakeContract.connect(user1Signer).stake(amount, communeAddress, "", signature)
-		).to.be.revertedWith("Staking is paused.")
+		).to.be.revertedWithCustomError(stakeContract, "StakingPaused")
 	})
 
 	it("Should respect allowCustomValidator flag while staking", async () => {
@@ -200,7 +200,7 @@ describe.only("StakeComAIV1", () => {
 
 		await expect(
 			stakeContract.connect(user1Signer).stake(amount2, communeAddress, "vali::miner", signature)
-		).to.be.revertedWith("Custom validator is not allowed")
+		).to.be.revertedWithCustomError(stakeContract, "CustomValidatorNotAllowed")
 
 		await stakeContract.updateAllowCustomValidator(true)
 		await stakeContract.connect(user1Signer).stake(amount, communeAddress, "vali::custom", signature)
