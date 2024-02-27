@@ -65,7 +65,7 @@ describe.only("StakeComAIV1", () => {
 		wCOMAIContract,
 	}: {
 		stakerAddress: string
-		amount: string
+		amount: string | bigint
 		deployer: string
 		stakeAddress: string
 		validator?: string
@@ -77,7 +77,7 @@ describe.only("StakeComAIV1", () => {
 		const communeAddress = "mockSS58address"
 
 		const signature = await getComAddressSignature({ signer, stakerAddress, comAddress: communeAddress })
-		const stakeAmount = parseEther(amount)
+		const stakeAmount = typeof amount === "string" ? parseEther(amount) : amount
 
 		// mint tokens for user
 		await wCOMAIContract.mint(stakerAddress, stakeAmount * 5n)
@@ -106,7 +106,7 @@ describe.only("StakeComAIV1", () => {
 
 		const amount = parseEther("1000")
 
-		let userStake = await stakeHelper({
+		await stakeHelper({
 			stakerAddress: user1,
 			deployer,
 			amount: "1000",
@@ -114,6 +114,7 @@ describe.only("StakeComAIV1", () => {
 			stakeContract,
 			wCOMAIContract,
 		})
+		let userStake = await stakeContract.stakers(user1)
 
 		expect(await stakeContract.totalStaked()).to.equal(amount)
 		expect(userStake.validator).to.equal(defaultValidator)
@@ -135,82 +136,100 @@ describe.only("StakeComAIV1", () => {
 
 	it("Should not allow staking with different validator", async () => {
 		const { stakeContract, deployer, user1, wCOMAIContract, stakeAddress } = await setupFixture()
-		const user1Signer = await ethers.getSigner(user1)
-		const signer = await ethers.getSigner(deployer)
-		const communeAddress = "mockSS58address"
 
-		const signature = await getComAddressSignature({ signer, stakerAddress: user1, comAddress: communeAddress })
-		const amount = parseEther("1000")
+		// 1st stake
+		await stakeHelper({
+			stakerAddress: user1,
+			deployer,
+			amount: "100",
+			stakeAddress,
+			stakeContract,
+			wCOMAIContract,
+		})
 
-		// mint tokens for user
-		await wCOMAIContract.mint(user1, parseEther("3000"))
-		// approve tokens spend
-		await wCOMAIContract.connect(user1Signer).approve(stakeAddress, MaxUint256)
-		// user stakes tokens
-		await stakeContract.connect(user1Signer).stake(amount, communeAddress, "", signature)
+		// 2nd stake with different validator
+		const stakePromise = stakeHelper({
+			stakerAddress: user1,
+			deployer,
+			amount: "100",
+			stakeAddress,
+			stakeContract,
+			wCOMAIContract,
+			validator: "vali::miner",
+		})
 
-		// Stake again for the same user but change validator
-
-		const amount2 = parseEther("1500")
-
-		await expect(
-			stakeContract.connect(user1Signer).stake(amount2, "", "vali::miner", "0x00")
-		).to.be.revertedWithCustomError(stakeContract, "InvalidValidator")
+		await expect(stakePromise).to.be.revertedWithCustomError(stakeContract, "InvalidValidator")
 	})
 
 	it("Should not allow staking if contract is paused", async () => {
 		const { stakeContract, deployer, user1, wCOMAIContract, stakeAddress } = await setupFixture()
-		const user1Signer = await ethers.getSigner(user1)
-		const signer = await ethers.getSigner(deployer)
-		const communeAddress = "mockSS58address"
 
 		await stakeContract.toggleStakingPause()
 		expect(await stakeContract.stakingPaused()).to.equal(true)
 
-		const signature = await getComAddressSignature({ signer, stakerAddress: user1, comAddress: communeAddress })
-		const amount = parseEther("1000")
+		const stakePromise = stakeHelper({
+			stakerAddress: user1,
+			deployer,
+			amount: "10",
+			stakeAddress,
+			stakeContract,
+			wCOMAIContract,
+		})
 
-		// mint tokens for user
-		await wCOMAIContract.mint(user1, parseEther("3000"))
-		// approve tokens spend
-		await wCOMAIContract.connect(user1Signer).approve(stakeAddress, MaxUint256)
+		await expect(stakePromise).to.be.revertedWithCustomError(stakeContract, "StakingPaused")
+	})
 
-		await expect(
-			stakeContract.connect(user1Signer).stake(amount, communeAddress, "", signature)
-		).to.be.revertedWithCustomError(stakeContract, "StakingPaused")
+	it("Should not allow to stake amount below minimal deposit amount", async () => {
+		const { stakeContract, deployer, user1, wCOMAIContract, stakeAddress } = await setupFixture()
+
+		const stakePromise = stakeHelper({
+			stakerAddress: user1,
+			deployer,
+			amount: "10",
+			stakeAddress,
+			stakeContract,
+			wCOMAIContract,
+		})
+
+		await expect(stakePromise).to.be.revertedWithCustomError(stakeContract, "StakeAmountTooLow")
 	})
 
 	it("Should respect allowCustomValidator flag while staking", async () => {
 		const { stakeContract, deployer, user1, wCOMAIContract, stakeAddress } = await setupFixture()
-		const user1Signer = await ethers.getSigner(user1)
-		const signer = await ethers.getSigner(deployer)
-		const communeAddress = "mockSS58address"
 
 		expect(await stakeContract.allowCustomValidator()).to.equal(false)
 
-		const signature = await getComAddressSignature({ signer, stakerAddress: user1, comAddress: communeAddress })
-		const amount = parseEther("1000")
+		const stakePromise = stakeHelper({
+			stakerAddress: user1,
+			deployer,
+			amount: "100",
+			stakeAddress,
+			stakeContract,
+			wCOMAIContract,
+			validator: "vali::custom",
+		})
 
-		// mint tokens for user
-		await wCOMAIContract.mint(user1, parseEther("3000"))
-		// approve tokens spend
-		await wCOMAIContract.connect(user1Signer).approve(stakeAddress, MaxUint256)
-
-		const amount2 = parseEther("1500")
-
-		await expect(
-			stakeContract.connect(user1Signer).stake(amount2, communeAddress, "vali::miner", signature)
-		).to.be.revertedWithCustomError(stakeContract, "CustomValidatorNotAllowed")
+		await expect(stakePromise).to.be.revertedWithCustomError(stakeContract, "CustomValidatorNotAllowed")
 
 		await stakeContract.updateAllowCustomValidator(true)
-		await stakeContract.connect(user1Signer).stake(amount, communeAddress, "vali::custom", signature)
+
+		const amount = parseEther("100")
+		await stakeHelper({
+			stakerAddress: user1,
+			deployer,
+			amount,
+			stakeAddress,
+			stakeContract,
+			wCOMAIContract,
+			validator: "vali::custom",
+		})
 
 		const userStake = await stakeContract.stakers(user1)
 
 		expect(await stakeContract.totalStaked()).to.equal(amount)
 		expect(userStake.validator).to.equal("vali::custom")
 		expect(userStake.amount).to.equal(amount)
-		expect(userStake.communeAddress).to.equal(communeAddress)
+		expect(userStake.communeAddress).to.equal("mockSS58address")
 	})
 
 	it("Should unstake tokens", async () => {
@@ -218,7 +237,7 @@ describe.only("StakeComAIV1", () => {
 
 		const user1Signer = await ethers.getSigner(user1)
 		const amount = parseEther("1000")
-		const userStake = await stakeHelper({
+		await stakeHelper({
 			stakerAddress: user1,
 			deployer,
 			amount: "1000",
@@ -226,6 +245,7 @@ describe.only("StakeComAIV1", () => {
 			stakeContract,
 			wCOMAIContract,
 		})
+		const userStake = await stakeContract.stakers(user1)
 
 		expect(await stakeContract.totalStaked()).to.equal(amount)
 		expect(userStake.amount).to.equal(amount)
@@ -251,7 +271,7 @@ describe.only("StakeComAIV1", () => {
 
 		const user1Signer = await ethers.getSigner(user1)
 		const amount = parseEther("1000")
-		const userStake = await stakeHelper({
+		await stakeHelper({
 			stakerAddress: user1,
 			deployer,
 			amount: "1000",
@@ -259,6 +279,7 @@ describe.only("StakeComAIV1", () => {
 			stakeContract,
 			wCOMAIContract,
 		})
+		const userStake = await stakeContract.stakers(user1)
 
 		expect(await stakeContract.totalStaked()).to.equal(amount)
 		expect(userStake.amount).to.equal(amount)
@@ -277,7 +298,7 @@ describe.only("StakeComAIV1", () => {
 
 		const user1Signer = await ethers.getSigner(user1)
 		const amount = parseEther("1000")
-		const userStake = await stakeHelper({
+		await stakeHelper({
 			stakerAddress: user1,
 			deployer,
 			amount: "1000",
@@ -285,6 +306,7 @@ describe.only("StakeComAIV1", () => {
 			stakeContract,
 			wCOMAIContract,
 		})
+		const userStake = await stakeContract.stakers(user1)
 
 		expect(await stakeContract.totalStaked()).to.equal(amount)
 		expect(userStake.amount).to.equal(amount)
@@ -303,7 +325,7 @@ describe.only("StakeComAIV1", () => {
 
 		const user1Signer = await ethers.getSigner(user1)
 		const amount = parseEther("1000")
-		const userStake = await stakeHelper({
+		await stakeHelper({
 			stakerAddress: user1,
 			deployer,
 			amount: "1000",
@@ -311,6 +333,7 @@ describe.only("StakeComAIV1", () => {
 			stakeContract,
 			wCOMAIContract,
 		})
+		const userStake = await stakeContract.stakers(user1)
 
 		await stakeContract.updateAllowCustomValidator(true)
 		expect(userStake.validator).to.equal(defaultValidator)

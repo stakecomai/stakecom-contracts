@@ -21,6 +21,8 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 	// Custom errors
 	error StakingPaused();
 	error ZeroStakeAmount();
+  error StakeAmountTooLow(uint256 minDeposit);
+  error CapacityLimitReached(uint256 capacityLimit);
 	error InsufficientAllowance(uint256 required, uint256 current);
 	error InsufficientBalance(uint256 required, uint256 current);
 	error CustomValidatorNotAllowed();
@@ -48,6 +50,8 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 	bool public allowCustomValidator = false;
 	uint256 public totalStaked;
 	bool public stakingPaused;
+  uint256 public minDeposit = 15 * 10**18;
+  uint256 public capacityLimit = 0;
 
 	event Staked(
 		address indexed user,
@@ -86,6 +90,8 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		bytes memory signature
 	) external nonReentrant {
 		if (stakingPaused) revert StakingPaused();
+    if (amount < minDeposit) revert StakeAmountTooLow(minDeposit);
+    if (capacityLimit > 0 && totalStaked + amount > capacityLimit) revert CapacityLimitReached(capacityLimit);
 		if (amount == 0) revert ZeroStakeAmount();
 		if (wCOMAIToken.allowance(msg.sender, address(this)) < amount)
 			revert InsufficientAllowance(
@@ -177,6 +183,14 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 	function updateComBridge(address _newCOMAIBridge) external onlyOwner {
 		comBridge = IComBridge(_newCOMAIBridge);
 	}
+
+  function updateMinDeposit(uint256 _newMinDeposit) external onlyOwner {
+    minDeposit = _newMinDeposit;
+  }
+
+  function updateCapacityLimit(uint256 _newCapacityLimit) external onlyOwner {
+    capacityLimit = _newCapacityLimit;
+  }
 
 	function adminUnstake(
 		address user,
