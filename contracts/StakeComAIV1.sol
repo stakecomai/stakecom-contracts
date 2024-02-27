@@ -53,6 +53,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 	uint256 public minDeposit = 15 * 10 ** 18;
 	uint256 public capacityLimit = 0;
 
+  // Events
 	event Staked(
 		address indexed user,
 		uint256 amount,

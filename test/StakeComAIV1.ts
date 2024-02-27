@@ -3,6 +3,9 @@ import { MaxUint256, parseEther } from "ethers"
 import { deployments, ethers, getNamedAccounts } from "hardhat"
 import { getComAddressSignature } from "../scripts/getSignature"
 import { BasicERC20, StakeComAIV1 } from "typechain-types"
+import { getComAddressSignatureViem } from "../scripts/getSignatureViem"
+
+type Address = `0x${string}`
 
 describe.only("StakeComAIV1", () => {
 	const defaultValidator = "vali::stakecom"
@@ -45,7 +48,7 @@ describe.only("StakeComAIV1", () => {
 			bridgeContract: bridgeContract,
 			stakeAddress,
 			deployer: signers.deployer,
-			user1: signers.user1,
+			user1: signers.user1 as Address,
 			accounts: await ethers.getSigners(),
 			contractConstructor: {
 				wCOMAIAddress,
@@ -63,6 +66,7 @@ describe.only("StakeComAIV1", () => {
 		stakeAddress,
 		stakeContract,
 		wCOMAIContract,
+		addressSignature,
 	}: {
 		stakerAddress: string
 		amount: string | bigint
@@ -71,12 +75,14 @@ describe.only("StakeComAIV1", () => {
 		validator?: string
 		wCOMAIContract: BasicERC20
 		stakeContract: StakeComAIV1
+		addressSignature?: string
 	}) => {
 		const user1Signer = await ethers.getSigner(stakerAddress)
 		const signer = await ethers.getSigner(deployer)
 		const communeAddress = "mockSS58address"
 
-		const signature = await getComAddressSignature({ signer, stakerAddress, comAddress: communeAddress })
+		const signature =
+			addressSignature || (await getComAddressSignature({ signer, stakerAddress, comAddress: communeAddress }))
 		const stakeAmount = typeof amount === "string" ? parseEther(amount) : amount
 
 		// mint tokens for user
@@ -113,6 +119,47 @@ describe.only("StakeComAIV1", () => {
 			stakeAddress,
 			stakeContract,
 			wCOMAIContract,
+		})
+		let userStake = await stakeContract.stakers(user1)
+
+		expect(await stakeContract.totalStaked()).to.equal(amount)
+		expect(userStake.validator).to.equal(defaultValidator)
+		expect(userStake.amount).to.equal(amount)
+		expect(userStake.communeAddress).to.equal(communeAddress)
+
+		// Stake again for the same user (and omit com Address)
+
+		const amount2 = parseEther("1500")
+		await stakeContract.connect(user1Signer).stake(amount2, "", "", "0x00")
+
+		userStake = await stakeContract.stakers(user1)
+
+		expect(await stakeContract.totalStaked()).to.equal(amount + amount2)
+		expect(userStake.validator).to.equal(defaultValidator)
+		expect(userStake.amount).to.equal(amount + amount2)
+		expect(userStake.communeAddress).to.equal(communeAddress)
+	})
+
+	it("Should stake tokens using viem to generate signature", async () => {
+		const { stakeContract, deployer, user1, wCOMAIContract, stakeAddress } = await setupFixture()
+		const user1Signer = await ethers.getSigner(user1)
+		const deployerSigner = await ethers.getSigner(deployer)
+		const communeAddress = "mockSS58address"
+
+		const amount = parseEther("1000")
+
+		await stakeHelper({
+			stakerAddress: user1,
+			deployer,
+			amount: "1000",
+			stakeAddress,
+			stakeContract,
+			wCOMAIContract,
+			addressSignature: await getComAddressSignatureViem({
+				signer: deployerSigner,
+				stakerAddress: user1,
+				comAddress: communeAddress,
+			}),
 		})
 		let userStake = await stakeContract.stakers(user1)
 

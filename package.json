@@ -19,7 +19,8 @@
 	"author": "Kristjan Kosic <kristjan@protokol.com>",
 	"license": "MIT",
 	"dependencies": {
-		"@openzeppelin/contracts": "5.0.1"
+		"@openzeppelin/contracts": "5.0.1",
+		"viem": "^2.7.15"
 	},
 	"devDependencies": {
 		"@nomicfoundation/hardhat-toolbox": "^4.0.0",
