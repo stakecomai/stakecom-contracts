@@ -25,15 +25,15 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 	error CapacityLimitReached(uint256 capacityLimit);
 	error InsufficientAllowance(uint256 required, uint256 current);
 	error InsufficientBalance(uint256 required, uint256 current);
-	error CustomValidatorNotAllowed();
-	error InvalidValidatorChange();
-	error NoStakeToChangeValidator();
+	error CustomModuleNotAllowed();
+	error InvalidModuleChange();
+	error NoStakeToChangeModule();
 	error NoStakeToUnstake();
 	error Unauthorized();
 	error InvalidUserAddress();
 	error InvalidSignature();
 	error CommuneAddressNotSet();
-	error InvalidValidator();
+	error InvalidModule();
 
 	IERC20 public wCOMAIToken;
 	IComBridge public comBridge;
@@ -41,13 +41,13 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 	struct Stakers {
 		uint256 amount;
 		string communeAddress;
-		string validator;
+		string module;
 	}
 
 	mapping(address => Stakers) public stakers;
-	string public defaultValidator;
+	string public defaultModule;
 	address public signer;
-	bool public allowCustomValidator = false;
+	bool public allowCustomModule = false;
 	uint256 public totalStaked;
 	bool public stakingPaused;
 	uint256 public minDeposit = 15 * 10 ** 18;
@@ -58,7 +58,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		address indexed user,
 		uint256 amount,
 		string communeAddress,
-		string validator
+		string module
 	);
 	event InitUnstake(
 		address indexed user,
@@ -66,18 +66,18 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		uint256 amountBeforeUnstake,
 		bool unstakeAll
 	);
-	event ValidatorChanged(address indexed user, string newValidator);
+	event ModuleChanged(address indexed user, string newModule);
 
 	constructor(
 		address _wCOMAIAddress,
 		address _bridgeAddress,
-		string memory _defaultValidator
+		string memory _defaultModule
 	) Ownable(msg.sender) {
 		if (_wCOMAIAddress == address(0) || _bridgeAddress == address(0))
 			revert InvalidUserAddress();
 		wCOMAIToken = IERC20(_wCOMAIAddress);
 		comBridge = IComBridge(_bridgeAddress);
-		defaultValidator = _defaultValidator;
+		defaultModule = _defaultModule;
 		signer = msg.sender;
 		// Set the max allowance for the comBridge contract
 		uint256 maxUint = type(uint256).max;
@@ -87,7 +87,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 	function stake(
 		uint256 amount,
 		string memory communeAddress,
-		string memory validator,
+		string memory module,
 		bytes memory signature
 	) external nonReentrant {
 		if (stakingPaused) revert StakingPaused();
@@ -107,7 +107,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 			);
 
 		handleCommuneAddress(communeAddress, signature);
-		handleValidator(msg.sender, validator);
+		handleModule(msg.sender, module);
 
 		wCOMAIToken.transferFrom(msg.sender, address(this), amount);
 		stakers[msg.sender].amount += amount;
@@ -120,7 +120,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 			msg.sender,
 			amount,
 			stakers[msg.sender].communeAddress,
-			stakers[msg.sender].validator
+			stakers[msg.sender].module
 		);
 	}
 
@@ -129,19 +129,19 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		wCOMAIToken.approve(address(comBridge), maxUint);
 	}
 
-	function changeValidator(string memory newValidator) external {
-		if (!allowCustomValidator) revert CustomValidatorNotAllowed();
-		if (stakers[msg.sender].amount == 0) revert NoStakeToChangeValidator();
+	function changeModule(string memory newModule) external {
+		if (!allowCustomModule) revert CustomModuleNotAllowed();
+		if (stakers[msg.sender].amount == 0) revert NoStakeToChangeModule();
 		if (
-			keccak256(bytes(newValidator)) ==
-			keccak256(bytes(stakers[msg.sender].validator))
-		) revert InvalidValidatorChange();
+			keccak256(bytes(newModule)) ==
+			keccak256(bytes(stakers[msg.sender].module))
+		) revert InvalidModuleChange();
 
-		stakers[msg.sender].validator = bytes(newValidator).length > 0
-			? newValidator
-			: defaultValidator;
+		stakers[msg.sender].module = bytes(newModule).length > 0
+			? newModule
+			: defaultModule;
 
-		emit ValidatorChanged(msg.sender, stakers[msg.sender].validator);
+		emit ModuleChanged(msg.sender, stakers[msg.sender].module);
 	}
 
 	function initUnstake(
@@ -154,7 +154,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		if (amountBeforeUnstake < amount || unstakeAll) {
 			amount = amountBeforeUnstake;
 			stakers[msg.sender].amount = 0;
-			stakers[msg.sender].validator = "";
+			stakers[msg.sender].module = "";
 		} else {
 			stakers[msg.sender].amount = amountBeforeUnstake - amount;
 		}
@@ -164,14 +164,14 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		emit InitUnstake(msg.sender, amount, amountBeforeUnstake, unstakeAll);
 	}
 
-	function updateAllowCustomValidator(bool _newValue) external onlyOwner {
-		allowCustomValidator = _newValue;
+	function updateAllowCustomModule(bool _newValue) external onlyOwner {
+		allowCustomModule = _newValue;
 	}
 
-	function updateDefaultValidator(
-		string memory _newDefaultValidator
+	function updateDefaultModule(
+		string memory _newDefaultModule
 	) external onlyOwner {
-		defaultValidator = _newDefaultValidator;
+		defaultModule = _newDefaultModule;
 	}
 
 	function updateSigner(address _newSigner) external onlyOwner {
@@ -208,7 +208,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		if (amountBeforeUnstake < amount || unstakeAll) {
 			amount = amountBeforeUnstake;
 			stakers[user].amount = 0;
-			stakers[user].validator = "";
+			stakers[user].module = "";
 		} else {
 			stakers[user].amount = amountBeforeUnstake - amount;
 		}
@@ -237,33 +237,33 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		}
 	}
 
-	function handleValidator(address sender, string memory validator) private {
-		bool isValidatorProvided = bytes(validator).length > 0;
-		string memory currentValidator = stakers[sender].validator;
-		bool isValidatorExisting = bytes(currentValidator).length > 0;
+	function handleModule(address sender, string memory module) private {
+		bool isModuleProvided = bytes(module).length > 0;
+		string memory currentModule = stakers[sender].module;
+		bool isModuleExisting = bytes(currentModule).length > 0;
 
 		if (
-			isValidatorExisting &&
-			isValidatorProvided &&
-			keccak256(bytes(validator)) != keccak256(bytes(currentValidator))
+			isModuleExisting &&
+			isModuleProvided &&
+			keccak256(bytes(module)) != keccak256(bytes(currentModule))
 		) {
-			revert InvalidValidator();
+			revert InvalidModule();
 		}
 
-		if (!isValidatorProvided && !isValidatorExisting) {
-			stakers[sender].validator = defaultValidator;
+		if (!isModuleProvided && !isModuleExisting) {
+			stakers[sender].module = defaultModule;
 			return;
 		}
 
-		if (isValidatorProvided) {
+		if (isModuleProvided) {
 			if (
-				keccak256(bytes(validator)) !=
-				keccak256(bytes(defaultValidator)) &&
-				!allowCustomValidator
+				keccak256(bytes(module)) !=
+				keccak256(bytes(defaultModule)) &&
+				!allowCustomModule
 			) {
-				revert CustomValidatorNotAllowed();
+				revert CustomModuleNotAllowed();
 			}
-			stakers[sender].validator = validator;
+			stakers[sender].module = module;
 		}
 	}
 
