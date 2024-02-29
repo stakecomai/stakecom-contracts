@@ -257,8 +257,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 
 		if (isModuleProvided) {
 			if (
-				keccak256(bytes(module)) !=
-				keccak256(bytes(defaultModule)) &&
+				keccak256(bytes(module)) != keccak256(bytes(defaultModule)) &&
 				!allowCustomModule
 			) {
 				revert CustomModuleNotAllowed();
