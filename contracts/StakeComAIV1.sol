@@ -63,7 +63,7 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 	event InitUnstake(
 		address indexed user,
 		uint256 amount,
-		uint256 amountBeforeUnstake,
+		uint256 fromAmount,
 		bool unstakeAll
 	);
 	event ModuleChanged(address indexed user, string newModule);
