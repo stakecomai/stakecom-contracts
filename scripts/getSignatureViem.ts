@@ -3,16 +3,18 @@ import { Address, encodePacked, keccak256, toBytes } from "viem"
 
 type BytesType = `0x${string}`
 
-export async function getComAddressSignatureViem({
+export async function getStakeSignatureViem({
 	signer,
 	stakerAddress,
 	comAddress,
+	module,
 }: {
 	signer: Signer
 	stakerAddress: Address
 	comAddress: string
+	module: string
 }) {
-	const packedMessage = encodePacked(["address", "string"], [stakerAddress, comAddress])
+	const packedMessage = encodePacked(["address", "string", "string"], [stakerAddress, comAddress, module])
 	const signature = await signPackedMessage({ signer, packedMessage })
 
 	return signature

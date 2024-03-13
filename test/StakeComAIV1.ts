@@ -1,9 +1,9 @@
 import { expect } from "chai"
 import { MaxUint256, parseEther } from "ethers"
 import { deployments, ethers, getNamedAccounts } from "hardhat"
-import { getComAddressSignature } from "../scripts/getSignature"
+import { getStakeSignature } from "../scripts/getSignature"
 import { BasicERC20, StakeComAIV1 } from "typechain-types"
-import { getComAddressSignatureViem } from "../scripts/getSignatureViem"
+import { getStakeSignatureViem } from "../scripts/getSignatureViem"
 
 type Address = `0x${string}`
 
@@ -83,10 +83,11 @@ describe.only("StakeComAIV1", () => {
 
 		const signature =
 			addressSignature ||
-			(await getComAddressSignature({
+			(await getStakeSignature({
 				signer,
 				stakerAddress,
 				comAddress: communeAddress,
+				module: module || "",
 			}))
 		const stakeAmount = typeof amount === "string" ? parseEther(amount) : amount
 
@@ -135,7 +136,14 @@ describe.only("StakeComAIV1", () => {
 		// Stake again for the same user (and omit com Address)
 
 		const amount2 = parseEther("1500")
-		await stakeContract.connect(user1Signer).stake(amount2, "", "", "0x00")
+		const signer = await ethers.getSigner(deployer)
+		const signature = await getStakeSignature({
+			signer,
+			stakerAddress: user1,
+			comAddress: "",
+			module: "",
+		})
+		await stakeContract.connect(user1Signer).stake(amount2, "", "", signature)
 
 		userStake = await stakeContract.stakers(user1)
 
@@ -160,10 +168,11 @@ describe.only("StakeComAIV1", () => {
 			stakeAddress,
 			stakeContract,
 			wCOMAIContract,
-			addressSignature: await getComAddressSignatureViem({
+			addressSignature: await getStakeSignatureViem({
 				signer: deployerSigner,
 				stakerAddress: user1,
 				comAddress: communeAddress,
+				module: "",
 			}),
 		})
 		let userStake = await stakeContract.stakers(user1)
@@ -176,7 +185,13 @@ describe.only("StakeComAIV1", () => {
 		// Stake again for the same user (and omit com Address)
 
 		const amount2 = parseEther("1500")
-		await stakeContract.connect(user1Signer).stake(amount2, "", "", "0x00")
+		const signature2 = await getStakeSignatureViem({
+			signer: deployerSigner,
+			stakerAddress: user1,
+			comAddress: "",
+			module: "",
+		})
+		await stakeContract.connect(user1Signer).stake(amount2, "", "", signature2)
 
 		userStake = await stakeContract.stakers(user1)
 

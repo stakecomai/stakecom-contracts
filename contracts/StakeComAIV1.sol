@@ -106,7 +106,13 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 				wCOMAIToken.balanceOf(msg.sender)
 			);
 
-		handleCommuneAddress(communeAddress, signature);
+		bytes32 message = keccak256(
+			abi.encodePacked(msg.sender, communeAddress, module)
+		);
+		if (!verifySignature(message, signer, signature))
+			revert InvalidSignature();
+
+		handleCommuneAddress(communeAddress);
 		handleModule(msg.sender, module);
 
 		wCOMAIToken.transferFrom(msg.sender, address(this), amount);
@@ -216,21 +222,13 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		emit InitUnstake(user, amount, amountBeforeUnstake, unstakeAll);
 	}
 
-	function handleCommuneAddress(
-		string memory communeAddress,
-		bytes memory signature
-	) private {
+	function handleCommuneAddress(string memory communeAddress) private {
 		bool isCommuneAddressProvided = bytes(communeAddress).length > 0;
 		bool isCommuneAddressExisting = bytes(
 			stakers[msg.sender].communeAddress
 		).length > 0;
 
 		if (isCommuneAddressProvided) {
-			bytes32 message = keccak256(
-				abi.encodePacked(msg.sender, communeAddress)
-			);
-			if (!verifySignature(message, signer, signature))
-				revert InvalidSignature();
 			stakers[msg.sender].communeAddress = communeAddress;
 		} else if (!isCommuneAddressExisting) {
 			revert CommuneAddressNotSet();

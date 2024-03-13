@@ -1,15 +1,17 @@
 import { BytesLike, Signer, getBytes, solidityPacked, solidityPackedKeccak256 } from "ethers"
 
-export async function getComAddressSignature({
+export async function getStakeSignature({
 	signer,
 	stakerAddress,
 	comAddress,
+	module,
 }: {
 	signer: Signer
 	stakerAddress: string
 	comAddress: string
+	module: string
 }) {
-	const packedMessage = solidityPacked(["address", "string"], [stakerAddress, comAddress])
+	const packedMessage = solidityPacked(["address", "string", "string"], [stakerAddress, comAddress, module])
 	const signature = await signPackedMessage({ signer, packedMessage })
 
 	return signature
