@@ -222,6 +222,22 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		emit InitUnstake(user, amount, amountBeforeUnstake, unstakeAll);
 	}
 
+	function adminChangeModule(address user, string memory newModule) external {
+		if (!(msg.sender == signer || msg.sender == owner()))
+			revert Unauthorized();
+		if (stakers[user].amount == 0) revert NoStakeToChangeModule();
+		if (
+			keccak256(bytes(newModule)) ==
+			keccak256(bytes(stakers[user].module))
+		) revert InvalidModuleChange();
+
+		stakers[user].module = bytes(newModule).length > 0
+			? newModule
+			: defaultModule;
+
+		emit ModuleChanged(user, stakers[user].module);
+	}
+
 	function handleCommuneAddress(string memory communeAddress) private {
 		bool isCommuneAddressProvided = bytes(communeAddress).length > 0;
 		bool isCommuneAddressExisting = bytes(
