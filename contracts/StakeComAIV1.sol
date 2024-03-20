@@ -155,14 +155,18 @@ contract StakeComAIV1 is ReentrancyGuard, Ownable {
 		bool unstakeAll
 	) external nonReentrant {
 		uint256 amountBeforeUnstake = stakers[msg.sender].amount;
-		if (amountBeforeUnstake == 0) revert NoStakeToUnstake();
+		if (bytes(stakers[msg.sender].module).length == 0)
+			revert NoStakeToUnstake();
 
 		if (amountBeforeUnstake < amount || unstakeAll) {
 			amount = amountBeforeUnstake;
 			stakers[msg.sender].amount = 0;
-			stakers[msg.sender].module = "";
 		} else {
 			stakers[msg.sender].amount = amountBeforeUnstake - amount;
+		}
+
+		if (unstakeAll) {
+			stakers[msg.sender].module = "";
 		}
 
 		totalStaked -= amount;

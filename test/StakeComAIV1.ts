@@ -324,8 +324,16 @@ describe.only("StakeComAIV1", () => {
 		let updatedUserStake = await stakeContract.stakers(user1)
 		expect(updatedUserStake.amount).to.equal(amount / 2n)
 
-		// unstake amount bigger than staked should unstake all
+		// unstake amount bigger than staked should make staked 0 but keep module
 		await stakeContract.connect(user1Signer).initUnstake(amount * 2n, false)
+
+		expect(await stakeContract.totalStaked()).to.equal(0n)
+		updatedUserStake = await stakeContract.stakers(user1)
+		expect(updatedUserStake.amount).to.equal(0n)
+		expect(updatedUserStake.module).to.equal("vali::stakecom")
+
+		// unstake all (remove module)
+		await stakeContract.connect(user1Signer).initUnstake(amount * 2n, true)
 
 		expect(await stakeContract.totalStaked()).to.equal(0n)
 		updatedUserStake = await stakeContract.stakers(user1)
